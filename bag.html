@@ -1,0 +1,355 @@
+
+<dom-module id="shopping-bag">
+    <style>
+        :host{
+            visibility: hidden;
+        }
+        :host.visible{
+            visibility: visible;
+        }
+        :host .hide{
+            display:none;
+        }
+        :host.hide-bag{
+            visibility: hidden;
+        }
+        :host.hide-bag>::content.visible{
+            display:none;
+        }
+        :host.hide-bag>bag-summary{
+            display:none;
+        }
+        :host.hide-bag>#emptyBag{
+            visibility: visible !important;
+        } 
+    </style>
+    <template>
+        <content select="bag-items">
+            <bag-items template>
+                    <header>
+                        <h5>Item</h5>
+                        <h5>Qty</h5>
+                        <h5>Price</h5>
+                        <h5>Subtotal</h5>
+                    </header>
+                    {#items}
+                    <bag-item data-id="{id}" data-row>
+                        <item-column>
+                            <content select="bag-thumb">"
+                              <bag-thumb>
+                                 <img>
+                              </bag-thumb>
+                            </content>
+                            <div>
+                                <a>{name}</a>
+                                <p class="sku">{sku}</p>
+                                {#description}
+                                <p>{key}: {value}</p>
+                                {/description}
+                                <a class="bag-remove" data-id="{id}"><span class="icon-remove-circle"></span> <span>remove</span></a>
+                            </div>
+                        </item-column>
+                        <item-column>
+                            <content select="[data-quantity]">
+                              <md-input data-id="{id}" data-value="{quantity}" data-quantity></md-input>
+                            </content>  
+                        </item-column>
+                        <item-column>
+                            <span class="price">{@formatCurrency value="{price}" /}</span>
+                        </item-column>
+                        <item-column>
+                            <span class="price" data-prop="subtotal">{@formatCurrency value="{total}" /}</span>
+                        </item-column>
+                        <bag-phone-display>
+                            <label>Qty:</label>
+                            <span>{quantity}</span>
+                            <label>Price:</label>
+                            <span class="price">>{@formatCurrency value="{price}" /}</span>
+                            <label>Total:</label>
+                            <span class="price">{@formatCurrency value="{total}" /}</span>
+                        </bag-phone-display>
+                    </bag-item>
+                    {/items}
+                    <content select="footer">
+                      <footer>
+                      </footer>
+                    </content>    
+                </bag-items>
+        </content>
+        <bag-summary id="summaryBag">
+            <content select="bag-coupon"></content>
+            <bag-totals>
+                <div class="item-total">
+                    <div class="label">Subtotal</div>
+                    <div class="amount">{{_formatCurrency(bag.subtotal)}}</div>
+                </div>
+                <div class="item-total">
+                    <div class="label">Discount</div>
+                    <div class="amount">{{_formatCurrency(bag.discount)}}</div>
+                </div>
+                <div class="item-total">
+                    <div class="label">Shipping</div>
+                    <div class="amount">{{_formatCurrency(bag.shipping)}}</div>
+                </div>
+                <div class="item-total">
+                    <div class="label">Tax</div>
+                    <div class="amount">{{_formatCurrency(bag.tax)}}</div>
+                </div>
+                <div class="item-total">
+                    <div class="label">Total</div>
+                    <div class="amount">{{_formatCurrency(bag.total)}}</div>
+                </div>
+            </bag-totals>
+            <bag-actions>
+                <md-submit raised="true" id="checkoutSubmit">Checkout</md-submit>
+            </bag-actions>
+        </bag-summary>
+        <bag-empty class="hide" id="emptyBag"></bag-empty>
+    </template>
+</dom-module>
+<script>
+
+    Polymer({
+
+        is: 'shopping-bag',
+
+        behaviors:[Elliptical.ComponentBehavior,Elliptical.TemplateBehavior],
+
+        properties: {
+            checkoutUrl:{
+                type:String,
+                value:null
+            },
+            buttonCss:{
+                type:String,
+                value:null
+            },
+            bag:{
+                type:Object,
+                notify:true
+            },
+            scope:{
+                type:String,
+                value:null
+            },
+            visibilityDelay:{
+                type:Number,
+                value:800
+            },
+            emptyMessage:{
+                type:String,
+                value:'Your shopping bag is currently empty...'
+            },
+            hideSummary:{
+                type:Boolean,
+                value:false
+            },
+            disableEvents:{
+                type:Boolean,
+                value:false
+            },
+            disableTemplate:{
+                type:Boolean,
+                value:false
+            },
+            _hideBag:{
+                type:Boolean,
+                value:false
+            }
+        },
+
+        listeners:{
+
+        },
+
+        ready:function(){
+            this._setSummary();
+            this._setButtonCss();
+            if(!this.disableEvents) this._events();
+            var delay=this.visibilityDelay;
+            var self=this;
+            setTimeout(function(){
+                self._initBag();
+            },delay);
+        },
+        
+        _initBag:function(){
+            if(!this.autoRebind) this._setDataByScope();
+            this._setVisibility();
+        },
+
+        _setSummary:function(){
+            if(this.hideSummary) this.$.summaryBag.classList.add('hide');
+        },
+
+        _setButtonCss:function(){
+            if(this.buttonCss) this.$.checkoutSubmit.setButtonCss(this.buttonCss);
+        },
+
+        _setDataByScope:function(){
+            if(this.scope){
+                var viewData=this._viewData();
+                if(viewData[this.scope]) this.bag=viewData[this.scope]
+                this.$scope=viewData[this.scope];
+                if(!this.disableTemplate) this._bindTemplate();
+                if(!this.$scope || this.$scope.items.length==0){
+                    this.classList.add('hide-bag');
+                    this._hideBag=true;
+                    this._setEmptyMessage();
+                }
+            }
+        },
+
+        _setVisibility:function(){
+            if(this._hideBag) return;
+            this.classList.add('visible');
+        },
+
+        _setEmptyMessage:function(){
+            this.$.emptyBag.innerHTML=this.emptyMessage;
+            this.$.emptyBag.classList.remove('hide');
+        },
+
+        _showEmptyBag:function(){
+            var bagItems=this.querySelector('bag-items');
+            this.$.emptyBag.classList.remove('hide');
+            this.$.summaryBag.classList.add('hide');
+            bagItems.classList.add('hide');
+            this._setEmptyMessage();
+        },
+
+        _showBag:function(){
+            var bagItems=this.querySelector('bag-items');
+            this.$.emptyBag.classList.add('hide');
+            this.$.summaryBag.classList.remove('hide');
+            bagItems.classList.remove('hide');
+        },
+
+        _events:function(){
+            this._event(this.element,this._data.click,'.bag-remove',this._onRemove.bind(this));
+            this._event(this.element,'md.input.change',this._onInputChange.bind(this));
+            this._event(this.element,this._data.click,'bag-coupon>md-submit',this._onApplyDiscount.bind(this));
+            this._event(this.element,this._data.click,'bag-actions>md-submit',this._onCheckout.bind(this));
+        },
+
+        _onRemove:function(event){
+            var target=event.currentTarget;
+            var id=target.dataset.id;
+            var row=this._getRowById(id,'items');
+            var itemTotal=(-1)*row.total;
+            this._updateTotals(itemTotal);
+            this._deleteRowById(id,'items');
+            if(this.bag.items.length < 1) this._showEmptyBag();
+            this._fireEvent('remove',{target:this,id:id});
+        },
+
+        _updateTotals:function(val){
+            this.bag.subtotal+=val;
+            this.bag.total+=val;
+            this.notifyPath('bag.subtotal', this.bag.subtotal);
+            this.notifyPath('bag.total', this.bag.total);
+        },
+
+        _onInputChange:function(event,data){
+            var id=data.id;
+            var row=this._getRowById(id,'items');
+            var oldQuantity=row.quantity;
+            var newQuantity=parseInt(data.value);
+            if(newQuantity < 1){
+                this._rebind();
+                return;
+            }
+            var itemPrice=(newQuantity-oldQuantity)*row.price;
+            row.total=newQuantity*row.price;
+            row.quantity=newQuantity;
+            this._updateTotals(itemPrice);
+            this._fireEvent('update',{target:this,item:row});
+            this._rebind();
+        },
+
+        _onApplyDiscount:function(event){
+            var input=this.querySelector('bag-coupon>md-input');
+            var code=input.value;
+            this._fireEvent('discount',{target:this,bag:this.bag,code:code});
+        },
+        
+        _onCheckout:function(event){
+            this._fireEvent('checkout',{target:this,bag:this.bag});
+        },
+
+        _setBagTotals:function(val){
+            this.bag=this.bag || {};
+            this.bag.subtotal=val.subtotal;
+            this.bag.shipping=val.shipping;
+            this.bag.discount=val.discount;
+            this.bag.tax=val.tax;
+            this.bag.total=val.total;
+        },
+
+        _fireEvent:function(evt,data){
+            this.element.trigger('shopping.bag.' + evt,data);
+        },
+        
+        _formatCurrency:function(val){
+            var currency=elliptical.utils.currency;
+            if(val!==undefined && val!==null) return currency.format(val);
+            else return val;
+        },
+
+        setData:function(val){
+            this.bag=val;
+            this.$scope=val;
+            this._setVisibility();
+            if(!this.disableTemplate) this._bindTemplate();
+        },
+
+        show:function(){
+            this._showBag();
+        },
+
+        hide:function(){
+            this._showEmptyBag();
+        },
+        
+        notifyBagTotals:function(val){
+            this._setBagTotals(val);
+            this.notifyPath('bag.subtotal', this.bag.subtotal);
+            this.notifyPath('bag.total', this.bag.total);
+            this.notifyPath('bag.tax', this.bag.tax);
+            this.notifyPath('bag.shipping', this.bag.shipping);
+            this.notifyPath('bag.discount', this.bag.discount);
+        },
+        
+        notifyTotal:function(val){
+            this.bag.total=val;
+            this.notifyPath('bag.total', val);
+        },
+        
+        notifyProperty:function(prop,val){
+            this.bag[prop]=val;
+            this.notifyPath('bag.' + prop, val);
+        },
+        
+        getBagTotal:function(){
+            var total=this.bag.total;
+            return this._formatCurrency(total);
+        },
+        
+        getBag:function(){
+            return this.bag;
+        },
+        
+        getFormattedBag:function(){
+            var bag=this.bag;
+            var obj={};
+            for (var prop in bag) {
+              if (bag.hasOwnProperty(prop)) {
+                  obj[prop]=this._formatCurrency(bag[prop]);
+              }
+            }
+            return obj;
+        }
+
+    });
+
+</script>
