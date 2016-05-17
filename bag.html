@@ -21,7 +21,7 @@
         }
         :host.hide-bag>#emptyBag{
             visibility: visible !important;
-        } 
+        }
     </style>
     <template>
         <content select="bag-items">
@@ -64,7 +64,7 @@
                             <label>Qty:</label>
                             <span>{quantity}</span>
                             <label>Price:</label>
-                            <span class="price">>{@formatCurrency value="{price}" /}</span>
+                            <span class="price">{@formatCurrency value="{price}" /}</span>
                             <label>Total:</label>
                             <span class="price">{@formatCurrency value="{total}" /}</span>
                         </bag-phone-display>
@@ -152,6 +152,14 @@
                 type:Boolean,
                 value:false
             },
+            srcImage:{
+                type:Boolean,
+                value:false
+            },
+            rebindBag:{
+                type:Boolean,
+                value:false
+            },
             _hideBag:{
                 type:Boolean,
                 value:false
@@ -170,6 +178,8 @@
             var self=this;
             setTimeout(function(){
                 self._initBag();
+                self._parseBagImages();
+                self._rebindBag();
             },delay);
         },
         
@@ -191,12 +201,23 @@
                 var viewData=this._viewData();
                 if(viewData[this.scope]) this.bag=viewData[this.scope]
                 this.$scope=viewData[this.scope];
-                if(!this.disableTemplate) this._bindTemplate();
-                if(!this.$scope || this.$scope.items.length==0){
-                    this.classList.add('hide-bag');
-                    this._hideBag=true;
-                    this._setEmptyMessage();
+                this._setBagVisibilityProps();
+            }else{
+                if(this.data){
+                    this.scope='bag';
+                    this._setScope();
+                    this.bag=this.$scope;
+                    this._setBagVisibilityProps();
                 }
+            }
+        },
+        
+        _setBagVisibilityProps:function(){
+            if(!this.disableTemplate) this._bindTemplate();
+            if(!this.$scope || this.$scope.items.length==0){
+               this.classList.add('hide-bag');
+               this._hideBag=true;
+               this._setEmptyMessage();
             }
         },
 
@@ -208,6 +229,31 @@
         _setEmptyMessage:function(){
             this.$.emptyBag.innerHTML=this.emptyMessage;
             this.$.emptyBag.classList.remove('hide');
+        },
+        
+        _parseBagImages:function(){
+            if(!this.srcImage) return;
+            var img=this.element.find('img');
+            $.each(img,function(index,tag){
+                var src=tag.dataset.src;
+                if(src) tag.setAttribute('src',src);
+            });
+        },
+        
+        _rebindBag:function(){
+            if(!this.rebindBag) return;
+            var items=this.bag.items;
+            var length=items.length;
+            if(length < 1) return;
+            var img=this.element.find('img');
+            var qty=this.element.find('[data-quantity]');
+            for(var i=0;i<length;i++){
+                var quantity=items[i].quantity;
+                var src=items[i].image;
+                qty[i].innerHTML=quantity;
+                img[i].setAttribute('src',src);
+            }
+            
         },
 
         _showEmptyBag:function(){
@@ -252,6 +298,7 @@
 
         _onInputChange:function(event,data){
             var id=data.id;
+            if(id==='code') return;
             var row=this._getRowById(id,'items');
             var oldQuantity=row.quantity;
             var newQuantity=parseInt(data.value);
